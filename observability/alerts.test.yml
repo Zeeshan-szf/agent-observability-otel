@@ -1,0 +1,68 @@
+# promtool unit tests: each alert fires on bad data and stays quiet on normal data.
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 1m
+
+tests:
+  - name: tool failure rate above 5% fires, 1% does not
+    interval: 1m
+    input_series:
+      - series: 'app_agent_tool_calls_total{gen_ai_tool_name="crm_lookup",outcome="ok"}'
+        values: '0+90x30'
+      - series: 'app_agent_tool_calls_total{gen_ai_tool_name="crm_lookup",outcome="error"}'
+        values: '0+10x30'
+      - series: 'app_agent_tool_calls_total{gen_ai_tool_name="search_docs",outcome="ok"}'
+        values: '0+99x30'
+      - series: 'app_agent_tool_calls_total{gen_ai_tool_name="search_docs",outcome="error"}'
+        values: '0+1x30'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: AgentToolFailureRate
+        exp_alerts:
+          - exp_labels:
+              severity: page
+              gen_ai_tool_name: crm_lookup
+            exp_annotations:
+              summary: More than 5% of calls to this tool are failing
+
+  - name: a run with more than 12 tool calls fires the loop alert
+    interval: 1m
+    input_series:
+      - series: 'app_agent_run_tool_calls_count{gen_ai_agent_name="support-agent"}'
+        values: '0+10x30'
+      - series: 'app_agent_run_tool_calls_bucket{gen_ai_agent_name="support-agent",le="12.0"}'
+        values: '0+10x10 100+9x20'
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: AgentReasoningLoop
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: AgentReasoningLoop
+        exp_alerts:
+          - exp_labels:
+              severity: page
+              gen_ai_agent_name: support-agent
+            exp_annotations:
+              summary: An agent run made more than 12 tool calls
+
+  - name: cost per run jumping from $0.07 to $0.30 fires the cost alert
+    interval: 5m
+    input_series:
+      # 5 runs every 5 minutes for 7 days, then 40 minutes of expensive runs.
+      - series: 'app_agent_run_cost_usd_count{gen_ai_agent_name="support-agent"}'
+        values: '0+5x2024'
+      - series: 'app_agent_run_cost_usd_sum{gen_ai_agent_name="support-agent"}'
+        values: '0+0.35x2016 705.6+1.5x8'
+    alert_rule_test:
+      - eval_time: 167h
+        alertname: AgentCostSpike
+        exp_alerts: []
+      - eval_time: 168h40m
+        alertname: AgentCostSpike
+        exp_alerts:
+          - exp_labels:
+              severity: page
+              gen_ai_agent_name: support-agent
+            exp_annotations:
+              summary: Agent cost per run is more than 2x its 7-day average

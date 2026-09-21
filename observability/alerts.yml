@@ -1,0 +1,49 @@
+# Three alerts every production agent should have by go-live.
+# Metric names are what the OpenTelemetry Collector's Prometheus exporter
+# produces from agent_otel/tracing.py.
+groups:
+  - name: ai-agents
+    rules:
+      # Average cost per run over 15 minutes is more than twice the 7-day average.
+      # Catches prompt injection, retry storms and accidental model upgrades.
+      - alert: AgentCostSpike
+        expr: |
+          (
+              sum by (gen_ai_agent_name) (rate(app_agent_run_cost_usd_sum[15m]))
+            / sum by (gen_ai_agent_name) (rate(app_agent_run_cost_usd_count[15m]))
+          )
+          > 2 * (
+              sum by (gen_ai_agent_name) (rate(app_agent_run_cost_usd_sum[7d]))
+            / sum by (gen_ai_agent_name) (rate(app_agent_run_cost_usd_count[7d]))
+          )
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: Agent cost per run is more than 2x its 7-day average
+
+      # More than 5% of calls to one tool failed in the last 15 minutes.
+      # Catches upstream outages and tool schema drift after a dependency update.
+      - alert: AgentToolFailureRate
+        expr: |
+          sum by (gen_ai_tool_name) (rate(app_agent_tool_calls_total{outcome="error"}[15m]))
+            / sum by (gen_ai_tool_name) (rate(app_agent_tool_calls_total[15m]))
+          > 0.05
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: More than 5% of calls to this tool are failing
+
+      # At least one run made more than 12 tool calls in the last 15 minutes.
+      # A looping agent never errors; it just burns tokens.
+      # Prometheus 3 stores the bucket edge as "12.0", Prometheus 2 as "12".
+      - alert: AgentReasoningLoop
+        expr: |
+          sum by (gen_ai_agent_name) (increase(app_agent_run_tool_calls_count[15m]))
+            - sum by (gen_ai_agent_name) (increase(app_agent_run_tool_calls_bucket{le=~"12(\\.0)?"}[15m]))
+          > 0
+        labels:
+          severity: page
+        annotations:
+          summary: An agent run made more than 12 tool calls
