@@ -1,0 +1,23 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - name: Trace shape follows the GenAI and MCP conventions
+        run: python -m unittest discover -s tests -t .
+      - name: Demo runs
+        run: python demo.py --scenario loop
+      - name: Alert rules pass their unit tests
+        run: |
+          docker run --rm -v "$PWD/observability:/rules" -w /rules --entrypoint promtool \
+            prom/prometheus:v3.14.0 test rules alerts.test.yml
