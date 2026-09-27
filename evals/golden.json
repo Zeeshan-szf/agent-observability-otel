@@ -1,0 +1,40 @@
+{
+  "_comment": [
+    "Golden trajectories for the support agent. Each case names a scenario the demo can run",
+    "and what a good trajectory through it looks like. expect_tools is an ordered subsequence,",
+    "not an exact list: pinning the exact sequence fails the suite every time the agent finds a",
+    "shorter route, which teaches people to delete the eval.",
+    "The loop case carries expect_fail so the suite also proves the gate catches a regression."
+  ],
+  "cases": [
+    {
+      "name": "answers from docs, CRM and pricing",
+      "scenario": "normal",
+      "expect_tools": ["search_docs", "crm_lookup", "pricing_api"],
+      "expect_arguments": {
+        "search_docs": ["query"],
+        "crm_lookup": ["customer_id"],
+        "pricing_api": ["sku"]
+      },
+      "max_tool_calls": 5,
+      "max_cost_usd": 0.10
+    },
+    {
+      "name": "recovers when the CRM times out",
+      "scenario": "tool-failure",
+      "expect_tools": ["search_docs", "crm_lookup", "pricing_api"],
+      "expect_arguments": { "crm_lookup": ["customer_id"] },
+      "max_tool_calls": 6,
+      "max_cost_usd": 0.12,
+      "must_recover": true
+    },
+    {
+      "name": "known regression: searches in a loop and never converges",
+      "scenario": "loop",
+      "expect_tools": ["search_docs", "crm_lookup"],
+      "max_tool_calls": 6,
+      "max_cost_usd": 0.12,
+      "expect_fail": true
+    }
+  ]
+}
