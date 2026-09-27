@@ -17,6 +17,8 @@ jobs:
         run: python -m unittest discover -s tests -t .
       - name: Demo runs
         run: python demo.py --scenario loop
+      - name: Golden trajectories still hold
+        run: python eval_gate.py
       - name: Alert rules pass their unit tests
         run: |
           docker run --rm -v "$PWD/observability:/rules" -w /rules --entrypoint promtool \
