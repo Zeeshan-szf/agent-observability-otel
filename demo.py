@@ -43,21 +43,21 @@ def crm_lookup(stats: RunStats, request_id: int, fail: bool) -> dict:
         return serve_tools_call(request, crm_lookup_handler(fail))
 
 
-def local_tool(stats: RunStats, name: str, call_id: str, seconds: float) -> None:
-    with tool_call(stats, name, call_id):
+def local_tool(stats: RunStats, name: str, call_id: str, seconds: float, arguments: dict) -> None:
+    with tool_call(stats, name, call_id, arguments):
         time.sleep(seconds)
 
 
 def run(scenario: str) -> RunStats:
     with agent_run(AGENT, MODEL, conversation_id=f"conv_{uuid.uuid4().hex[:12]}") as stats:
         fake_llm(stats, 2_900, 180, 0.35)  # plan
-        local_tool(stats, "search_docs", "call_1", 0.3)
+        local_tool(stats, "search_docs", "call_1", 0.3, {"query": "refund policy", "top_k": 5})
 
         if scenario == "loop":
             # The agent keeps searching and never converges: no error, just cost.
             for i in range(2, 15):
                 fake_llm(stats, 3_400, 120, 0.05)
-                local_tool(stats, "search_docs", f"call_{i}", 0.05)
+                local_tool(stats, "search_docs", f"call_{i}", 0.05, {"query": "refund policy", "top_k": 5})
             fake_llm(stats, 9_100, 1_870, 0.2)
             return stats
 
@@ -68,7 +68,7 @@ def run(scenario: str) -> RunStats:
             fake_llm(stats, 6_420, 260, 0.3)  # re-plan after the timeout
             crm_lookup(stats, request_id=2, fail=False)
 
-        local_tool(stats, "pricing_api", "call_3", 0.2)
+        local_tool(stats, "pricing_api", "call_3", 0.2, {"sku": "SKU-9931", "currency": "USD"})
         fake_llm(stats, 9_100, 1_870, 0.5)  # final answer
     return stats
 

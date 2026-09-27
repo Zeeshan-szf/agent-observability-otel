@@ -16,15 +16,16 @@ from opentelemetry.propagate import extract, inject
 from opentelemetry.trace import SpanKind, Status, StatusCode
 
 from . import setup
-from .tracing import RunStats, ToolError, count_tool_call
+from .tracing import RunStats, ToolError, argument_keys, count_tool_call
 
 PROTOCOL_VERSION = "2026-07-28"
 
 tracer = trace.get_tracer("agent_otel.mcp")
 
 
-def _span_attributes(tool: str, request_id: int) -> dict[str, Any]:
+def _span_attributes(tool: str, request_id: int, arguments: dict | None = None) -> dict[str, Any]:
     return {
+        "app.tool.argument_keys": argument_keys(arguments),
         "mcp.method.name": "tools/call",
         "mcp.protocol.version": PROTOCOL_VERSION,
         "gen_ai.operation.name": "execute_tool",
@@ -40,7 +41,7 @@ def mcp_tool_call(stats: RunStats, tool: str, arguments: dict, request_id: int):
     with tracer.start_as_current_span(
         f"tools/call {tool}", kind=SpanKind.CLIENT, record_exception=False, set_status_on_exception=False
     ) as span:
-        span.set_attributes(_span_attributes(tool, request_id))
+        span.set_attributes(_span_attributes(tool, request_id, arguments))
         meta: dict[str, str] = {}
         inject(meta)  # traceparent, plus tracestate/baggage when present
         request = {

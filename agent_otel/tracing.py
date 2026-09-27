@@ -9,6 +9,10 @@ https://github.com/open-telemetry/semantic-conventions-genai (status: Developmen
 
 Cost, tool calls per run and replans have no convention yet, so they use the
 app.* namespace. Swap it for your own.
+
+`app.tool.argument_keys` records the names an agent passed to a tool and never
+the values, which are the part likely to hold customer data. It is enough to
+grade argument extraction from a trace; see evals.py.
 """
 
 from contextlib import contextmanager
@@ -27,6 +31,11 @@ PRICES = {
 }
 
 tracer = trace.get_tracer("agent_otel")
+
+
+def argument_keys(arguments: dict | None) -> str:
+    """The argument names an agent passed, sorted. Values are deliberately dropped."""
+    return ",".join(sorted(arguments or {}))
 
 
 class ToolError(Exception):
@@ -138,7 +147,7 @@ def llm_call(stats: RunStats, model: str):
 
 
 @contextmanager
-def tool_call(stats: RunStats, tool: str, call_id: str):
+def tool_call(stats: RunStats, tool: str, call_id: str, arguments: dict | None = None):
     """Span for one local tool call. Raise ToolError inside the block to mark it failed."""
     stats.tool_calls += 1
     with tracer.start_as_current_span(
@@ -150,6 +159,7 @@ def tool_call(stats: RunStats, tool: str, call_id: str):
                 "gen_ai.tool.name": tool,
                 "gen_ai.tool.call.id": call_id,
                 "gen_ai.tool.type": "function",
+                "app.tool.argument_keys": argument_keys(arguments),
             }
         )
         try:
