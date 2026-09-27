@@ -10,6 +10,7 @@ class TraceShapeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         setup.setup()
+        setup.clear()  # other test modules may have run first; grade only this run
         cls.stats = demo.run("tool-failure")
         cls.spans = setup.finished_spans()
 

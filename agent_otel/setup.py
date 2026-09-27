@@ -77,3 +77,8 @@ def shutdown() -> None:
 
 def finished_spans():
     return _memory.get_finished_spans()
+
+
+def clear() -> None:
+    """Drop the spans held in memory so the next run is graded on its own trace."""
+    _memory.clear()
